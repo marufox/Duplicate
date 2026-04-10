@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # আপনার টেলিগ্রাম বট টোকেন
-TOKEN = '8260254278:AAHFAs-n3e8IiWg8O6navsdDVs4jQlihcJQ'
+TOKEN = '8260254278:AAE0ZTPrPVQExDHS0VWhA7T8f_Bp8S1gYiI'
 
 # আপনার চাহিদা অনুযায়ী কলামের নাম সেট করা হলো
 CHECK_COLUMNS = ['user', 'pass'] 
