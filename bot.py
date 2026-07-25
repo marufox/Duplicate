@@ -31,7 +31,6 @@ def extract_data(df):
     all_data = []
     num_cols = df.shape[1]
     
-    # যদি ১টি কলাম থাকে
     if num_cols == 1:
         for idx, row in df.iterrows():
             if pd.notna(row[0]):
@@ -43,7 +42,6 @@ def extract_data(df):
                         row_data.append("")
                     all_data.append(row_data)
     else:
-        # একাধিক কলাম
         max_cols = min(5, num_cols)
         for idx, row in df.iterrows():
             row_data = []
