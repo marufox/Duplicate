@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ================= 🔧 [ কনফিগারেশন ] =================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8260254278:AAE0ZTPrPVQExDHS0VWhA7T8f_Bp8S1gYiI")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 def auto_adjust_column_width(file_path):
     try:
