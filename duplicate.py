@@ -7,7 +7,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ================= 🔧 [ কনফিগারেশন ] =================
-BOT_TOKEN = "8260254278:AAE0ZTPrPVQExDHS0VWhA7T8f_Bp8S1gYiI"
+# রেলওয়ে ভেরিয়েবল থেকে টোকেন নেওয়া
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8260254278:AAE0ZTPrPVQExDHS0VWhA7T8f_Bp8S1gYiI")
 
 def auto_adjust_column_width(file_path):
     """Excel ফাইলের কলামের প্রস্থ অটো সাইজ করে"""
@@ -31,54 +32,105 @@ def auto_adjust_column_width(file_path):
     except:
         pass
 
-def extract_from_columns(df):
-    """শুধু A, B, C কলাম থেকে ডাটা নেয়া (D, E, F ইগনোর)"""
+def extract_from_single_column(df):
+    """যদি মাত্র ১টি কলাম থাকে, তাহলে স্পেস দিয়ে আলাদা করা ডাটা এক্সট্রাক্ট করে"""
     all_data = []
     
-    # শুধু প্রথম 3 কলাম নেওয়া (A, B, C)
-    max_cols = min(3, df.shape[1])
-    
+    # শুধু প্রথম কলাম নেওয়া
     for idx, row in df.iterrows():
-        username = ""
-        password = ""
-        twofa = ""
-        
-        # A কলাম (index 0) = username
-        if max_cols >= 1 and pd.notna(row[0]):
-            username = str(row[0]).strip()
-        
-        # B কলাম (index 1) = password
-        if max_cols >= 2 and pd.notna(row[1]):
-            password = str(row[1]).strip()
-        
-        # C কলাম (index 2) = 2fa
-        if max_cols >= 3 and pd.notna(row[2]):
-            twofa = str(row[2]).strip()
-        
-        # যদি username এবং password থাকে
-        if username and password:
-            # 2fa তে যদি বেশি টেক্সট থাকে, সেটা রাখা
-            all_data.append([username, password, twofa])
+        if pd.notna(row[0]):
+            text = str(row[0]).strip()
+            if text:
+                # স্পেস দিয়ে আলাদা করা
+                parts = text.split()
+                
+                # যতগুলো অংশ আছে সব নেওয়া (সর্বোচ্চ ৫টি)
+                row_data = parts[:5]
+                
+                # ৫টি কলাম পূরণ করা
+                while len(row_data) < 5:
+                    row_data.append("")
+                
+                all_data.append(row_data)
     
     if all_data:
-        df_clean = pd.DataFrame(all_data, columns=["username", "password", "2fa"])
+        columns = ["col1", "col2", "col3", "col4", "col5"]
+        df_clean = pd.DataFrame(all_data, columns=columns)
         
         # খালি ডাটা বাদ
-        df_clean = df_clean[(df_clean["username"].astype(str).str.strip() != "") & 
-                            (df_clean["password"].astype(str).str.strip() != "")]
+        df_clean = df_clean[(df_clean["col1"].astype(str).str.strip() != "") & 
+                            (df_clean["col2"].astype(str).str.strip() != "")]
         
-        # পাসওয়ার্ড অনুযায়ী সাজানো (একই পাসওয়ার্ড একসাথে)
-        df_clean = df_clean.sort_values(by=["password", "username"])
+        # col2 (password) এবং col1 (username) অনুযায়ী সাজানো
+        df_clean = df_clean.sort_values(by=["col2", "col1"])
+        
+        return df_clean
+    
+    return None
+
+def extract_from_columns(df):
+    """একাধিক কলাম থেকে ডাটা নেয়া (সর্বোচ্চ ৫টি)"""
+    all_data = []
+    
+    # কতগুলো কলাম আছে দেখি
+    num_cols = df.shape[1]
+    
+    # যদি ১টি কলাম থাকে, তাহলে single column ফাংশন কল করি
+    if num_cols == 1:
+        return extract_from_single_column(df)
+    
+    # সর্বোচ্চ ৫টি কলাম নেওয়া
+    max_cols = min(5, num_cols)
+    
+    for idx, row in df.iterrows():
+        row_data = []
+        
+        # প্রতিটি কলাম থেকে ডাটা নেওয়া
+        for col_idx in range(max_cols):
+            if pd.notna(row[col_idx]):
+                # যদি কোনো কলামে স্পেস দিয়ে একাধিক ডাটা থাকে
+                text = str(row[col_idx]).strip()
+                if text and ' ' in text:
+                    # স্পেস দিয়ে আলাদা করে সবগুলো অংশ নেওয়া
+                    parts = text.split()
+                    row_data.extend(parts[:5])  # প্রথম ৫টি অংশ নেওয়া
+                else:
+                    row_data.append(text)
+            else:
+                row_data.append("")
+        
+        # যদি row_data তে ৫টির বেশি ডাটা থাকে, তাহলে প্রথম ৫টি নেওয়া
+        if len(row_data) > 5:
+            row_data = row_data[:5]
+        
+        # ৫টি কলাম পূরণ করা
+        while len(row_data) < 5:
+            row_data.append("")
+        
+        # যদি col1 এবং col2 থাকে
+        if row_data[0] and row_data[1]:
+            all_data.append(row_data)
+    
+    if all_data:
+        columns = ["col1", "col2", "col3", "col4", "col5"]
+        df_clean = pd.DataFrame(all_data, columns=columns)
+        
+        # খালি ডাটা বাদ
+        df_clean = df_clean[(df_clean["col1"].astype(str).str.strip() != "") & 
+                            (df_clean["col2"].astype(str).str.strip() != "")]
+        
+        # col2 (password) এবং col1 (username) অনুযায়ী সাজানো
+        df_clean = df_clean.sort_values(by=["col2", "col1"])
         
         return df_clean
     
     return None
 
 def extract_from_messy_data(df):
-    """এলোমেলো ডাটা থেকে শুধু A, B, C খুঁজে বের করা"""
+    """এলোমেলো ডাটা থেকে ৫টি কলাম খুঁজে বের করা"""
     all_data = []
     
-    # পুরো ফাইল স্ক্যান করে শুধু A, B, C স্টাইলের ডাটা খোঁজা
+    # পুরো ফাইল স্ক্যান করে ডাটা খোঁজা
     for idx, row in df.iterrows():
         for col_idx, val in enumerate(row):
             if pd.notna(val):
@@ -87,28 +139,24 @@ def extract_from_messy_data(df):
                     # চেষ্টা 1: স্পেস দিয়ে আলাদা কিনা
                     parts = text.split()
                     
-                    if len(parts) >= 3:
-                        # মনে হচ্ছে এটা A B C স্টাইলের ডাটা (username password 2fa)
-                        username = parts[0]
-                        password = parts[1]
-                        twofa = ' '.join(parts[2:])
-                        all_data.append([username, password, twofa])
-                    elif len(parts) == 2:
-                        # username আর password থাকতে পারে
-                        username = parts[0]
-                        password = parts[1]
-                        twofa = ""
-                        all_data.append([username, password, twofa])
+                    if len(parts) >= 2:
+                        # ২টি বা তার বেশি কলাম থাকলে
+                        row_data = parts[:5]  # প্রথম ৫টি নেওয়া
+                        while len(row_data) < 5:
+                            row_data.append("")
+                        all_data.append(row_data)
+                        break  # একটি সেল থেকে ডাটা পেলে ব্রেক করি
     
     if all_data:
-        df_clean = pd.DataFrame(all_data, columns=["username", "password", "2fa"])
+        columns = ["col1", "col2", "col3", "col4", "col5"]
+        df_clean = pd.DataFrame(all_data, columns=columns)
         
         # খালি ডাটা বাদ
-        df_clean = df_clean[(df_clean["username"].astype(str).str.strip() != "") & 
-                            (df_clean["password"].astype(str).str.strip() != "")]
+        df_clean = df_clean[(df_clean["col1"].astype(str).str.strip() != "") & 
+                            (df_clean["col2"].astype(str).str.strip() != "")]
         
-        # পাসওয়ার্ড অনুযায়ী সাজানো
-        df_clean = df_clean.sort_values(by=["password", "username"])
+        # col2 এবং col1 অনুযায়ী সাজানো
+        df_clean = df_clean.sort_values(by=["col2", "col1"])
         
         return df_clean
     
@@ -120,12 +168,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ *Duplicate Remover Bot Active!*\n\n"
         "📂 Send me a `.csv` or `.xlsx` file.\n\n"
         "🔧 *What this bot does:*\n"
-        "• Reads ONLY columns A, B, C\n"
-        "• Ignores columns D, E, F (extra data)\n"
-        "• Works with clean OR messy data\n"
-        "• Removes duplicate entries\n"
+        "• Works with 1 or more columns\n"
+        "• If 1 column: splits data by spaces\n"
+        "• Extracts up to 5 columns (A, B, C, D, E)\n"
+        "• Ignores extra columns beyond E\n"
+        "• Removes duplicate entries (checks all columns)\n"
         "• Groups same passwords together\n\n"
-        "📤 Output: `username | password | 2fa` (sorted by password)\n\n"
+        "📤 Output: `col1 | col2 | col3 | col4 | col5` (sorted by col2/password)\n\n"
         "💡 Powered by MAX FUTURE",
         parse_mode="Markdown"
     )
@@ -153,19 +202,19 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             df = pd.read_excel(input_file, header=None)
 
-        # প্রথমে চেষ্টা করা শুধু A, B, C কলাম হিসাবে নেওয়া
+        # প্রথমে কলাম থেকে এক্সট্রাক্ট করার চেষ্টা
         clean_df = extract_from_columns(df)
         
-        # যদি না পাওয়া যায়, তাহলে এলোমেলো ডাটা থেকে খোঁজা
+        # যদি না পাওয়া যায়, তাহলে এলোমেলো ডাটা থেকে খোঁজা
         if clean_df is None or clean_df.empty:
             clean_df = extract_from_messy_data(df)
         
         if clean_df is None or clean_df.empty:
-            await update.message.reply_text("❌ Could not extract data! Make sure columns A=username, B=password, C=2fa")
+            await update.message.reply_text("❌ Could not extract data! Make sure data is in proper format.")
             return
 
-        # ডুপ্লিকেট চেক (username + password + 2fa)
-        duplicate_mask = clean_df.duplicated(subset=["username", "password", "2fa"], keep='first')
+        # ডুপ্লিকেট চেক (সমস্ত কলাম চেক করা হবে)
+        duplicate_mask = clean_df.duplicated(keep='first')
         unique_df = clean_df[~duplicate_mask]
         duplicate_df = clean_df[duplicate_mask]
 
@@ -185,7 +234,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         report += f"✅ Unique: {len(unique_df)} records\n"
         report += f"🗑️ Duplicates removed: {len(duplicate_df)} records\n\n"
         report += f"📌 Same passwords grouped together\n"
-        report += f"📌 Columns D, E, F ignored"
+        report += f"📌 Columns: col1 | col2 | col3 | col4 | col5"
 
         # ফাইল পাঠানো
         with open(unique_file, 'rb') as f:
@@ -204,7 +253,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}\n\n⚠️ Make sure file has A=username, B=password, C=2fa")
+        await update.message.reply_text(f"❌ Error: {str(e)}\n\n⚠️ Make sure file format is correct")
 
     finally:
         for f in [input_file, unique_file, duplicate_file]:
@@ -219,8 +268,9 @@ def main():
 
     print("=" * 50)
     print("✅ DUPLICATE REMOVER BOT STARTED")
-    print("📌 Reads ONLY columns A, B, C")
-    print("📌 Ignores columns D, E, F")
+    print("📌 Works with 1 or more columns")
+    print("📌 If 1 column: splits by spaces")
+    print("📌 Extracts up to 5 columns")
     print("📌 Groups same passwords together")
     print("💡 Send any Excel/CSV file")
     print("=" * 50)
