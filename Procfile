@@ -1,1 +1,1 @@
-python duplicate.py
+worker: python duplicate.py
